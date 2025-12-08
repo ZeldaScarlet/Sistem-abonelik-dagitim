@@ -7,13 +7,11 @@ import java.io.FileNotFoundException;
 public class FamilyServiceImpl extends FamilyServiceGrpc.FamilyServiceImplBase {
 
     private final NodeRegistry registry;
-    private final NodeInfo self;
 
     private final MessageHandler messageHandler;
 
     public FamilyServiceImpl(NodeRegistry registry, NodeInfo self) {
         this.registry = registry;
-        this.self = self;
         this.registry.add(self);
 
         this.messageHandler = new MessageHandler(self.getPort());
@@ -44,7 +42,7 @@ public class FamilyServiceImpl extends FamilyServiceGrpc.FamilyServiceImplBase {
     @Override
     public void store(StoredMessage request, StreamObserver<StoreResult> responseObserver) {
         boolean success = true;
-        String msg = "Saved successfully";
+        String msg = "Başarıyla kaydedildi.";
 
         try {
             // Liderden gelen "Kaydet" emrini disk yöneticisine iletiyoruz
@@ -52,7 +50,7 @@ public class FamilyServiceImpl extends FamilyServiceGrpc.FamilyServiceImplBase {
         } catch (Exception e) {
             success = false;
             msg = e.getMessage();
-            System.err.println("❌ Disk write error: " + e.getMessage());
+            System.err.println("Kaydedilirken bir hata oluştu: : " + e.getMessage());
         }
 
         responseObserver.onNext(StoreResult.newBuilder()
