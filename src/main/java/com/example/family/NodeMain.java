@@ -49,7 +49,6 @@ public class NodeMain {
 
                 System.out.printf("Düğüm başlatıldı: %s:%d%n", host, port);
 
-                // Eğer bu ilk node ise (port 5555), TCP 6666'da text dinlesin
                 if (port == START_PORT) {
                     startLeaderTextListener(registry, self, diskHandler);
                 }
@@ -99,42 +98,32 @@ public class NodeMain {
                     if ("SET".equals(cmd) && parts.length == 3) {
                         String content = parts[2];
 
-                        // A. Lider Kaydeder
                         diskHandler.saveMessage(id, content);
-
-                        // B. Dağıtır
                         List<NodeInfo> confirmedNodes = replicateToMembers(id, content, registry, self);
 
-                        // C. Haritayı Güncelle
                         List<NodeInfo> allHolders = new java.util.ArrayList<>();
                         allHolders.add(self);
                         allHolders.addAll(confirmedNodes);
                         messageLocationMap.put(id, allHolders);
-
-                        // --- EKLENEN KISIM BAŞLANGIÇ ---
-                        // D. Log Dosyasına Yaz (Kalıcılık için şart!)
-                        // Sadece replika yapılanları yazıyoruz, lider zaten belli.
                         writeMessageMap(id, confirmedNodes);
-                        // --- EKLENEN KISIM BİTİŞ ---
+                        
 
                         if (confirmedNodes.size() < Math.min(TOLERANCE, registry.snapshot().size() - 1)) {
-                            System.out.println("⚠️ Warning: Desired tolerance not met.");
+                            System.out.println(" Warning: Desired tolerance not met.");
                         }
 
                         out.println("OK");
                     } else if ("GET".equals(cmd)) {
                         String result = null;
 
-                        // A. Önce Lider Kendine Bakar
                         try {
                             result = diskHandler.readMessage(id);
                             System.out.println("   -> Found locally.");
                         } catch (IOException e) {
-                            // Liderde yok veya dosya silinmiş
+                            
                             System.out.println("   -> Not found locally, checking network...");
                         }
 
-                        // B. Liderde Yoksa Üyelere Bak
                         if (result == null) {
                             result = fetchFromMembers(id, self);
                         }
@@ -361,16 +350,14 @@ public class NodeMain {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("messageMap.txt", true))) {
 
             StringBuilder sb = new StringBuilder();
-
-            // Format: ID:
+           
             sb.append(messageId).append(":");
-
-            // Format: Port Port Port
+            
             for (NodeInfo n : nodes) {
                 sb.append(" ").append(n.getPort());
             }
 
-            // Satırı dosyaya yaz ve yeni satıra geç
+            
             writer.write(sb.toString());
             writer.newLine();
 
