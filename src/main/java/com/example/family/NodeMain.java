@@ -194,7 +194,7 @@ public class NodeMain {
                         stub.getFamily(Empty.newBuilder().build());
 
                     } catch (Exception e) {
-                        // Bağlantı yok / node ölmüş → listeden çıkar
+                      
                         System.out.printf("Node %s:%d unreachable, removing from family%n",
                                 n.getHost(), n.getPort());
                         registry.remove(n);
