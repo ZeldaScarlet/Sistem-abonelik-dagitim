@@ -25,6 +25,7 @@ public class NodeMain {
 
     private static MessageHandler diskHandler;
     private static int TOLERANCE = 1;
+    private static int SAVE_MODE = 1; // Varsayılan: Buffered
 
     public static void main(String[] args) throws Exception {
         loadToleranceConfig();
@@ -38,8 +39,8 @@ public class NodeMain {
                 .build();
 
         NodeRegistry registry = new NodeRegistry();
-        diskHandler = new MessageHandler(port);
-        FamilyServiceImpl service = new FamilyServiceImpl(registry, self);
+        diskHandler = new MessageHandler(port, SAVE_MODE);
+        FamilyServiceImpl service = new FamilyServiceImpl(registry, self, SAVE_MODE);
 
         Server server = ServerBuilder
                 .forPort(port)
@@ -182,42 +183,43 @@ public class NodeMain {
     }
 
     private static void startHealthChecker(NodeRegistry registry, NodeInfo self) {
-        try (ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor()) {
 
-            scheduler.scheduleAtFixedRate(() -> {
-                List<NodeInfo> members = registry.snapshot();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-                for (NodeInfo n : members) {
-                    if (n.getPort() == self.getPort()) {
-                        continue;
-                    }
+        scheduler.scheduleAtFixedRate(() -> {
+            List<NodeInfo> members = registry.snapshot();
 
-                    ManagedChannel channel = null;
-                    try {
-                        channel = ManagedChannelBuilder
-                                .forAddress(n.getHost(), n.getPort())
-                                .usePlaintext()
-                                .build();
-
-                        FamilyServiceGrpc.FamilyServiceBlockingStub stub =
-                                FamilyServiceGrpc.newBlockingStub(channel);
-
-                        stub.getFamily(Empty.newBuilder().build());
-
-                    } catch (Exception e) {
-                        // Bağlantı yok / node ölmüş → listeden çıkar
-                        System.out.printf("Node %s:%d unreachable, removing from family%n",
-                                n.getHost(), n.getPort());
-                        registry.remove(n);
-                    } finally {
-                        if (channel != null) {
-                            channel.shutdownNow();
-                        }
-                    }
+            for (NodeInfo n : members) {
+                if (n.getPort() == self.getPort()) {
+                    continue;
                 }
 
-            }, 5, 10, TimeUnit.SECONDS);
-        }
+                ManagedChannel channel = null;
+                try {
+                    channel = ManagedChannelBuilder
+                            .forAddress(n.getHost(), n.getPort())
+                            .usePlaintext()
+                            .build();
+
+                    FamilyServiceGrpc.FamilyServiceBlockingStub stub =
+                            FamilyServiceGrpc.newBlockingStub(channel);
+
+                    stub.getFamily(Empty.newBuilder().build());
+
+                } catch (Exception e) {
+                    System.out.printf("Node %s:%d yanıt vermiyor, aileden çıkarılıyor...%n",
+                            n.getHost(), n.getPort());
+
+                    registry.remove(n);
+
+                } finally {
+                    if (channel != null) {
+                        channel.shutdownNow();
+                    }
+                }
+            }
+
+        }, 5, 10, TimeUnit.SECONDS);
     }
 
     private static List<NodeInfo> replicateToMembers(int msgId, String content, NodeRegistry registry, NodeInfo self) {
@@ -378,6 +380,33 @@ public class NodeMain {
 
         } catch (IOException e) {
             System.err.println("messageMap.txt güncellenirken hata oluştu: " + e.getMessage());
+        }
+    }
+
+    private static void loadSaveConfig() {
+        File file = new File("save.conf");
+        if (!file.exists()) {
+            System.out.println("save.conf bulunamadı, varsayılan mod (Buffered) kullanılıyor.");
+            return;
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line = reader.readLine();
+            // Dosyada sadece "1", "2" veya "3" yazması yeterli
+            if (line != null) {
+                SAVE_MODE = Integer.parseInt(line.trim());
+                System.out.println("Disk Yazma Modu: " + getModeName(SAVE_MODE));
+            }
+        } catch (Exception e) {
+            System.err.println("save.conf okuma hatası: " + e.getMessage());
+        }
+    }
+
+    private static String getModeName(int mode) {
+        switch (mode) {
+            case 1: return "Buffered IO (BufferedWriter)";
+            case 2: return "Unbuffered IO (FileOutputStream)";
+            case 3: return "Zero-Copy / NIO (FileChannel)";
+            default: return "Bilinmiyor (Varsayılan Buffered)";
         }
     }
 

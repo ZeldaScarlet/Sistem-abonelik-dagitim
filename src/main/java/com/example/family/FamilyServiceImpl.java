@@ -4,17 +4,20 @@ import family.*;
 import io.grpc.stub.StreamObserver;
 import java.io.FileNotFoundException;
 
+
 public class FamilyServiceImpl extends FamilyServiceGrpc.FamilyServiceImplBase {
 
     private final NodeRegistry registry;
 
     private final MessageHandler messageHandler;
+    private final int saveMode;
 
-    public FamilyServiceImpl(NodeRegistry registry, NodeInfo self) {
+    public FamilyServiceImpl(NodeRegistry registry, NodeInfo self, int saveMode) {
         this.registry = registry;
+        this.saveMode = saveMode;
         this.registry.add(self);
 
-        this.messageHandler = new MessageHandler(self.getPort());
+        this.messageHandler = new MessageHandler(self.getPort(), saveMode);
     }
 
     @Override
